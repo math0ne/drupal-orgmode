@@ -19,18 +19,18 @@ INSTALLATION
 * Create a directory under your default files directory where the files will be kept
 * Setup the variables below in your .emacs file
   
-  ```elisp
-  (require 'org-publish)
-  (setq org-drupal-dir "C:\\Users\\math\\Dropbox\\home\\orgdrupal") ;;the local directory where you will store your site org files
-  (setq org-drupal-dir-remote "X:\\drupalorg\\sites\\default\\files\\drupalorg") ;;the drupal files directory where the published files will be stored (use a tramp address here to publish to your remote site)
-  (setq org-drupal-default-user "username") ;;the drupal username you want to publish under (must exist in drupal)
-  (setq org-drupal-default-category "A category") ;;any categories you want added to new posts by default
-  (setq org-publish-use-timestamps-flag nil) ;; this makes sure we publish even if no files are modified
+```elisp
+(require 'org-publish)
+(setq org-drupal-dir "C:\\Users\\math\\Dropbox\\home\\orgdrupal") ;;the local directory where you will store your site org files
+(setq org-drupal-dir-remote "X:\\drupalorg\\sites\\default\\files\\drupalorg") ;;the drupal files directory where the published files will be stored (use a tramp address here to publish to your remote site)
+(setq org-drupal-default-user "username") ;;the drupal username you want to publish under (must exist in drupal)
+(setq org-drupal-default-category "A category") ;;any categories you want added to new posts by default
+(setq org-publish-use-timestamps-flag nil) ;; this makes sure we publish even if no files are modified
 
-  ;;optional push based publishing, comment out if you don't want to use
-  (setq org-drupal-secret "F487fEWw8764GFsiuwhfbw3rerRRW221")
-  (setq org-drupal-sitename "http://drupalorg.local")
-  (load-file "~/.emacs.d/drupalorg.el")
+;;optional push based publishing, comment out if you don't want to use
+(setq org-drupal-secret "F487fEWw8764GFsiuwhfbw3rerRRW221")
+(setq org-drupal-sitename "http://drupalorg.local")
+(load-file "~/.emacs.d/drupalorg.el")
   ```
 * Copy the drupalorg.el to the directory you specified above
 
