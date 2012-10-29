@@ -1,4 +1,4 @@
-A drupal module and some associates elisp code that will allow you to manage drupal content in emacs org-mode, be aware that if you use this module to manage a content type, you cannot make any changes to that content through drupal.
+A drupal module and some associated elisp code that will allow you to manage drupal content in emacs org-mode, be aware that if you use this module to manage a content type, you cannot make any changes to that content through drupal.
 
 FEATURES
 
@@ -19,7 +19,7 @@ INSTALLATION
 * Create a directory under your default files directory where the files will be kept
 * Setup the variables below in your .emacs file
   
-```elisp
+```lisp
 (require 'org-publish)
 (setq org-drupal-dir "C:\\Users\\math\\Dropbox\\home\\orgdrupal") ;;the local directory where you will store your site org files
 (setq org-drupal-dir-remote "X:\\drupalorg\\sites\\default\\files\\drupalorg") ;;the drupal files directory where the published files will be stored (use a tramp address here to publish to your remote site)
