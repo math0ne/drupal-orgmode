@@ -1,0 +1,7 @@
+name = Drupal Org Content Store
+description = "This allows you to manage your drupal content in org"
+core = 7.x
+files[] = drupalorg.module
+stylesheets[all][] = drupalorg.css
+
+configure = admin/drupalorg

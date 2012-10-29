@@ -1,0 +1,231 @@
+<?php
+
+/**
+ * @file
+ * drupalorg - A module that allows you to manage content in emacs org mode
+ *
+ * By Aidan McQuay (math0ne@gmail.com
+ *
+ */
+
+/* the menu hook - adds the path "/testie" to the site. */
+
+function drupalorg_menu(){
+	$items['admin/drupalorg'] = array(
+    'title' => 'Drupal Org',
+		'page callback' => 'drupal_get_form',
+    'page arguments' => array('drupalorg_form'),
+		'access arguments' => array('access administration pages'),
+	);
+
+	return $items;
+}
+
+//set up our administration page
+function drupalorg_form($form, &$form_state) {
+  $form['org_files_dir'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Org Files Directory'),
+    '#default_value' => variable_get('org_files_dir', "sites/default/files/drupalorg"),
+    '#size' => 20,
+    '#maxlength' => 200,
+    '#description' => t('The directory you want to store you org files in'),
+    '#required' => TRUE,
+  );
+  $form['org_content_type'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Org Content Type'),
+    '#default_value' => variable_get('org_content_type', ""),
+    '#size' => 20,
+    '#maxlength' => 200,
+    '#description' => t('The content type you want to be managed by org. CAUTION: <b>Any content created or edited in drupal will be list when we sync the content.</b>'),
+    '#required' => TRUE,
+  );
+  $form['org_sync_content'] = array(
+    '#type' => 'submit',
+    '#value' => t('Sync Org Content'),
+    '#weight' => 19,
+    '#submit' => array('drupalorg_sync_content_submit'),
+  );
+
+  return system_settings_form($form);
+}
+
+//This function will sync the outputted or mode html documents plus
+//any additional info in the org files themselves with drupal
+function drupalorg_sync_content_submit(){
+
+  //find all the org files in our directory
+  $orgposts = file_scan_directory(variable_get('org_files_dir') . '/output', '/.*\.html$/');
+
+  //check if we found any org files
+  if( !count($orgposts) > 0 ){
+    drupal_set_message("No drupalorg files found.");
+    return;
+  }
+  
+  //get node types
+	$node_types = array();
+  foreach(node_type_get_types() as $type) {
+    $node_types[] = $type->type;
+  } 
+  
+  //clear all posts in the orf content type
+  if(in_array(variable_get('org_content_type'), $node_types)){
+    drupalorg_generate_content_kill(array('node_types' => array(variable_get('org_content_type'))));
+  }
+  else{
+    drupal_set_message("No drupalorg content type set.");
+    return;
+  }
+
+  //process each exported org file
+	foreach ($orgposts as $orgpost) {
+
+    //open the exported content
+    $stream = fopen($orgpost->uri,"r");
+    $pageContents = stream_get_contents($stream);
+    fclose($stream);
+
+    //open the origin org file for the exported html document
+    $stream = fopen(variable_get('org_files_dir') . "/" . $orgpost->name . ".org","r");
+    $orgFileContents = stream_get_contents($stream);
+    fclose($stream);
+
+    //process the org attributes
+		$orgFileAtributes = explode("#+", $orgFileContents);
+    foreach ($orgFileAtributes as $orgFileAtribute) {
+      $tmpPieces = explode(":", $orgFileAtribute);
+      
+      if( $tmpPieces[0] == "TAXONOMY" ){
+        $orgTaxonomy = trim($tmpPieces[1]);
+        $orgTid = taxonomy_get_term_by_name($orgTaxonomy);
+      }
+      if( $tmpPieces[0] == "USER" ){
+        $orgUser = trim($tmpPieces[1]);
+        $user = user_load_by_name($orgUser);
+        $orgUserID = $user->uid;
+      }
+      if( $tmpPieces[0] == "IMAGE" ){
+        $orgImage = trim($tmpPieces[1]);
+      }
+      if( $tmpPieces[0] == "URL" ){
+        $orgURL = trim($tmpPieces[1]);
+      }
+      if( $tmpPieces[0] == "COMMENTS" ){
+        $orgComments = trim($tmpPieces[1]);
+      }
+      if( $tmpPieces[0] == "DATE" ){
+        //we need to convert the org timestamp to a mysql stamp
+        $orgDate = trim($tmpPieces[1].$tmpPieces[2]);
+        $orgDateAr = explode(">", $orgDate);
+        $orgTimeStamp = str_replace("<", "", $orgDateAr[0]);
+        $orgTimeStamp = strtotime($orgTimeStamp);
+      }
+      if( $tmpPieces[0] == "STATUS" ){
+        $orgStatus = trim($tmpPieces[1]);
+      }
+      if( $tmpPieces[0] == "PROMOTE" ){
+        $orgPromote = trim($tmpPieces[1]);
+      }
+      if( $tmpPieces[0] == "CCK" ){
+        $orgCCKRaw = trim($tmpPieces[1]);
+        $orgCCKAr[] = explode("|", $orgCCKRaw);
+      }
+
+
+    }
+
+    //get the title from the file name
+    $orgTitle = str_replace("-", " ", $orgpost->name);
+
+    //set up the node object for saving
+    $node = new stdClass();
+    $node->title = $orgTitle;
+    if( $orgURL ){
+      $node->path['alias'] = $orgURL;
+    }
+    $node->type = variable_get('org_content_type');
+    node_object_prepare($node); // Sets some defaults. Invokes hook_prepare() and hook_node_prepare().
+    $node->language = LANGUAGE_NONE; // Or e.g. 'en' if locale is enabled
+    $node->uid = $orgUserID;
+    $node->status = $orgStatus; //(1 or 0): published or not
+    $node->promote = $orgPromote; //(1 or 0): promoted to front page
+    $node->comment = $orgComments; //2 = comments on, 1 = comments off
+    $node->body[$node->language][0]['value'] = $pageContents; 
+
+    // Term reference (taxonomy) field
+    if( $orgTid ){
+      $node->field_tags["und"][0]['tid'] = key($orgTid);
+    }
+
+    //if we have a file we need to create it
+    if( $orgImage != "" ){
+      $filename = $orgImage;
+      $filepath = variable_get('org_files_dir') . "/" . $orgImage;
+      $file = new StdClass();
+      $file->uid = 1;
+      $file->uri = $filepath;
+      $file->filename = $filename;
+      $file->filemime = file_get_mimetype($file->uri);
+      $file->status = 1;     
+
+      $dest = file_default_scheme() . '://'.$filename; // Subdirectory name within files directory. ($dest is optional.)
+      $file = file_copy($file, $dest);
+      $file->display = 1;
+      $file->description = "";
+
+      $node->field_image['und'][0] = (array)$file;//the name of the field that       
+    }
+
+    //Set up our cck variables
+    foreach ($orgCCKAr as $orgCCKfield) {
+      $node->{$orgCCKfield[0]}["und"][0]["value"] = $orgCCKfield[1];
+    }
+    
+    //prepare node for saving
+    $node = node_submit($node); 
+    $node->created = $orgTimeStamp;
+    $node->body[$node->language][0]['format'] = 'full_html';
+    if(node_save($node)){
+      drupal_set_message("Unable to to save node: ".$orgTitle);
+      
+    }
+    else{
+      drupal_set_message("Saved node: ".$orgTitle);
+    }
+  }
+  
+	return;
+}
+
+/**
+* Implements hook_cron().
+*
+* hook_cron() is the traditional (pre-Drupal 7) hook for doing "background"
+* processing. It gets called every time the Drupal cron runs and must decide
+* what it will do.
+* 
+* We sync the content every time content runs.
+* 
+*/
+function cron_example_cron() {
+	drupalorg_sync_content_submit();
+  watchdog('drupalorg', 'Synced org content');
+} 
+
+//this function is used to delete all content of a given type
+function drupalorg_generate_content_kill($values) {
+  $results = db_select('node', 'n')
+              ->fields('n', array('nid'))
+              ->condition('type', $values['node_types'], 'IN')
+              ->execute();
+  foreach ($results as $result) {
+    $nids[] = $result->nid;
+  }
+
+  if (!empty($nids)) {
+    node_delete_multiple($nids);
+    drupal_set_message(t('Deleted %count nodes.', array('%count' => count($nids))));
+  }
+}
