@@ -17,6 +17,12 @@ function drupalorg_menu(){
     'page arguments' => array('drupalorg_form'),
 		'access arguments' => array('access administration pages'),
 	);
+  $items['org-publish'] = array(
+    'title' => 'Org Files Synced',
+    'page callback' => 'drupalorg_push_publish',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+	);
 
 	return $items;
 }
@@ -41,6 +47,15 @@ function drupalorg_form($form, &$form_state) {
     '#description' => t('The content type you want to be managed by org. CAUTION: <b>Any content created or edited in drupal will be list when we sync the content.</b>'),
     '#required' => TRUE,
   );
+  $form['org_secret'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Org Secret'),
+    '#default_value' => variable_get('org_secret', ""),
+    '#size' => 20,
+    '#maxlength' => 200,
+    '#description' => t('A secret key used for push publishing from emacs.'),
+    '#required' => FALSE,
+  );
   $form['org_sync_content'] = array(
     '#type' => 'submit',
     '#value' => t('Sync Org Content'),
@@ -49,6 +64,19 @@ function drupalorg_form($form, &$form_state) {
   );
 
   return system_settings_form($form);
+}
+
+//This is used for optional push publishing from emacs
+function drupalorg_push_publish(){
+  if (variable_get('org_secret', FALSE)){
+    if( variable_get('org_secret') == $_GET["secret"]){
+      drupalorg_sync_content_submit();
+      echo "Published";
+    } else{
+      echo "Not Published";
+    }
+  }
+  return;
 }
 
 //This function will sync the outputted or mode html documents plus
