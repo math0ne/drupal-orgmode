@@ -10,21 +10,21 @@
 
 /* the menu hook - adds the path "/testie" to the site. */
 
-function drupalorg_menu(){
-	$items['admin/drupalorg'] = array(
+function drupalorg_menu() {
+  $items = array();
+  $items['admin/drupalorg'] = array(
     'title' => 'Drupal Org',
-		'page callback' => 'drupal_get_form',
+    'page callback' => 'drupal_get_form',
     'page arguments' => array('drupalorg_form'),
-		'access arguments' => array('access administration pages'),
-	);
+    'access arguments' => array('access administration pages'),
+  );
   $items['org-publish'] = array(
-    'title' => 'Org Files Synced',
     'page callback' => 'drupalorg_push_publish',
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
-	);
+  );
 
-	return $items;
+  return $items;
 }
 
 //set up our administration page
@@ -67,96 +67,101 @@ function drupalorg_form($form, &$form_state) {
 }
 
 //This is used for optional push publishing from emacs
-function drupalorg_push_publish(){
-  if (variable_get('org_secret', FALSE)){
-    if( variable_get('org_secret') == $_GET["secret"]){
-      drupalorg_sync_content_submit();
-      echo "Published";
-    } else{
-      echo "Not Published";
-    }
+function drupalorg_push_publish() {
+  if ( empty($_GET["secret"]) ) {
+    return "Not published (No Secret)";
   }
-  return;
+  else{
+    if (variable_get('org_secret', FALSE)) {
+      if ( variable_get('org_secret') == $_GET["secret"]) {
+        drupalorg_sync_content_submit();
+        return "Published";
+      }
+      else{
+        return "Not published (Wrong Secret)";
+      }
+    }  
+  }
 }
 
 //This function will sync the outputted or mode html documents plus
 //any additional info in the org files themselves with drupal
-function drupalorg_sync_content_submit(){
+function drupalorg_sync_content_submit() {
 
   //find all the org files in our directory
   $orgposts = file_scan_directory(variable_get('org_files_dir') . '/output', '/.*\.html$/');
 
   //check if we found any org files
-  if( !count($orgposts) > 0 ){
-    drupal_set_message("No drupalorg files found.");
+  if ( !count($orgposts) > 0 ) {
+    drupal_set_message(t("No drupalorg files found."));
     return;
   }
   
   //get node types
-	$node_types = array();
-  foreach(node_type_get_types() as $type) {
+  $node_types = array();
+  foreach (node_type_get_types() as $type) {
     $node_types[] = $type->type;
   } 
   
   //clear all posts in the orf content type
-  if(in_array(variable_get('org_content_type'), $node_types)){
+  if (in_array(variable_get('org_content_type'), $node_types)) {
     drupalorg_generate_content_kill(array('node_types' => array(variable_get('org_content_type'))));
   }
-  else{
-    drupal_set_message("No drupalorg content type set.");
+  else {
+    drupal_set_message(t("No drupalorg content type set."));
     return;
   }
 
   //process each exported org file
-	foreach ($orgposts as $orgpost) {
+  foreach ($orgposts as $orgpost) {
 
     //open the exported content
-    $stream = fopen($orgpost->uri,"r");
+    $stream = fopen($orgpost->uri, "r");
     $pageContents = stream_get_contents($stream);
     fclose($stream);
 
     //open the origin org file for the exported html document
-    $stream = fopen(variable_get('org_files_dir') . "/" . $orgpost->name . ".org","r");
+    $stream = fopen(variable_get('org_files_dir') . "/" . $orgpost->name . ".org", "r");
     $orgFileContents = stream_get_contents($stream);
     fclose($stream);
 
     //process the org attributes
-		$orgFileAtributes = explode("#+", $orgFileContents);
+    $orgFileAtributes = explode("#+", $orgFileContents);
     foreach ($orgFileAtributes as $orgFileAtribute) {
       $tmpPieces = explode(":", $orgFileAtribute);
       
-      if( $tmpPieces[0] == "TAXONOMY" ){
+      if ( $tmpPieces[0] == "TAXONOMY" ) {
         $orgTaxonomy = trim($tmpPieces[1]);
         $orgTid = taxonomy_get_term_by_name($orgTaxonomy);
       }
-      if( $tmpPieces[0] == "USER" ){
+      if ( $tmpPieces[0] == "USER" ) {
         $orgUser = trim($tmpPieces[1]);
         $user = user_load_by_name($orgUser);
         $orgUserID = $user->uid;
       }
-      if( $tmpPieces[0] == "IMAGE" ){
+      if ( $tmpPieces[0] == "IMAGE" ) {
         $orgImage = trim($tmpPieces[1]);
       }
-      if( $tmpPieces[0] == "URL" ){
+      if ( $tmpPieces[0] == "URL" ) {
         $orgURL = trim($tmpPieces[1]);
       }
-      if( $tmpPieces[0] == "COMMENTS" ){
+      if ( $tmpPieces[0] == "COMMENTS" ) {
         $orgComments = trim($tmpPieces[1]);
       }
-      if( $tmpPieces[0] == "DATE" ){
+      if ( $tmpPieces[0] == "DATE" ) {
         //we need to convert the org timestamp to a mysql stamp
-        $orgDate = trim($tmpPieces[1].$tmpPieces[2]);
+        $orgDate = trim($tmpPieces[1] . $tmpPieces[2]);
         $orgDateAr = explode(">", $orgDate);
         $orgTimeStamp = str_replace("<", "", $orgDateAr[0]);
         $orgTimeStamp = strtotime($orgTimeStamp);
       }
-      if( $tmpPieces[0] == "STATUS" ){
+      if ( $tmpPieces[0] == "STATUS" ) {
         $orgStatus = trim($tmpPieces[1]);
       }
-      if( $tmpPieces[0] == "PROMOTE" ){
+      if ( $tmpPieces[0] == "PROMOTE" ) {
         $orgPromote = trim($tmpPieces[1]);
       }
-      if( $tmpPieces[0] == "CCK" ){
+      if ( $tmpPieces[0] == "CCK" ) {
         $orgCCKRaw = trim($tmpPieces[1]);
         $orgCCKAr[] = explode("|", $orgCCKRaw);
       }
@@ -170,7 +175,7 @@ function drupalorg_sync_content_submit(){
     //set up the node object for saving
     $node = new stdClass();
     $node->title = $orgTitle;
-    if( $orgURL ){
+    if ( $orgURL ) {
       $node->path['alias'] = $orgURL;
     }
     $node->type = variable_get('org_content_type');
@@ -183,22 +188,22 @@ function drupalorg_sync_content_submit(){
     $node->body[$node->language][0]['value'] = $pageContents; 
 
     // Term reference (taxonomy) field
-    if( $orgTid ){
+    if ( $orgTid ) {
       $node->field_tags["und"][0]['tid'] = key($orgTid);
     }
 
     //if we have a file we need to create it
-    if( $orgImage != "" ){
+    if ( $orgImage != "" ) {
       $filename = $orgImage;
       $filepath = variable_get('org_files_dir') . "/" . $orgImage;
-      $file = new StdClass();
+      $file = new stdClass();
       $file->uid = 1;
       $file->uri = $filepath;
       $file->filename = $filename;
       $file->filemime = file_get_mimetype($file->uri);
       $file->status = 1;     
 
-      $dest = file_default_scheme() . '://'.$filename; // Subdirectory name within files directory. ($dest is optional.)
+      $dest = file_default_scheme() . '://' . $filename; // Subdirectory name within files directory. ($dest is optional.)
       $file = file_copy($file, $dest);
       $file->display = 1;
       $file->description = "";
@@ -215,16 +220,16 @@ function drupalorg_sync_content_submit(){
     $node = node_submit($node); 
     $node->created = $orgTimeStamp;
     $node->body[$node->language][0]['format'] = 'full_html';
-    if(node_save($node)){
-      drupal_set_message("Unable to to save node: ".$orgTitle);
+    if (node_save($node)) {
+      drupal_set_message(check_plain("Unable to to save node: " . $orgTitle));
       
     }
     else{
-      drupal_set_message("Saved node: ".$orgTitle);
+      drupal_set_message(check_plain("Saved node: " . $orgTitle));
     }
   }
   
-	return;
+  return;
 }
 
 /**
@@ -238,7 +243,7 @@ function drupalorg_sync_content_submit(){
 * 
 */
 function cron_example_cron() {
-	drupalorg_sync_content_submit();
+  drupalorg_sync_content_submit();
   watchdog('drupalorg', 'Synced org content');
 } 
 
